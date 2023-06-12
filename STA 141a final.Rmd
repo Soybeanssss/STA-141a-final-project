@@ -1,0 +1,961 @@
+---
+title: "Predicting Feedback Types using Brainwave Data through Predictive Modeling"
+author: "Victor Yeh"
+date: "2023-06-12"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Final Project by Victor Yeh
+# Abstract
+
+This project focuses on predicting feedback types using brainwave data through predictive modeling. The dataset consists of brainwave recordings from multiple sessions. The data includes information such as feedback type, contrast levels, time, and spike counts for different neurons.
+
+Initially, the data is explored to determine the number of neurons and trials in each session. Plots are generated to visualize neural activity and spike counts across different trials and neurons. The data is also compared across sessions and mice to identify any variations.
+
+To build the predictive model, a subset of trials is sampled for each neuron. The sampled data is then converted into a dataframe, and missing values are filled with the mean. The feedback type column is modified to represent binary classes (1 and 0).
+
+The dataset is split into training and test sets, with specific test sets reserved for Sessions 1 and 18. Logistic regression, decision tree, and random forest models are trained on the training data. The models are evaluated on the test sets using evaluation metrics such as accuracy, precision, recall, and F1-score.
+
+The results show the performance of the models on the test sets. The logistic regression and random forest models achieve comparable accuracy, precision, recall, and F1-score. Further analysis and improvements can be explored to enhance the model's performance.
+
+This project demonstrates the potential of utilizing brainwave data for predicting feedback types. The predictive modeling approach can provide valuable insights into understanding brain activity and its relationship with feedback types. Further advancements in this field can contribute to the development of brain-computer interfaces and neuroscientific research.
+
+# Introduction
+
+This report presents an analysis of neural activity data obtained from a study conducted by Steinmetz et al. (2019) involving 4 mice over 18 sessions. The study aimed to investigate the neural responses of mice to visual stimuli and their decision-making processes based on those stimuli. The data consists of multiple sessions, each comprising several hundred trials, where visual stimuli with varying contrast levels were presented to the mice. The mice had to make decisions based on the stimuli, and feedback in the form of rewards or penalties was provided accordingly.
+
+## Objective
+
+The objective of this analysis is to explore and understand the neural activity patterns in response to visual stimuli and evaluate the performance of different prediction models in predicting the feedback decisions based on neural activity data.
+
+## Dataset
+
+The dataset used in this analysis consists of neural activity recordings obtained from the 18 sessions of the study. The data includes information about the feedback type, contrast levels, time, spike counts of neurons, brain areas, and session indices. The neural activity data is organized in a list format, with each session containing information about multiple trials and neurons.
+
+
+
+```{r start}
+
+folder_path <- "sessions"
+files <- list.files(folder_path, pattern = "\\.rds$")
+print(files)
+
+# Create a list to store the data from each session
+session_data <- vector("list", 18)
+
+# Specify the path to the folder containing the RDS files
+folder_path <- "sessions/"
+
+# Loop through the RDS files and read the data
+for (i in 1:18) {
+  # Construct the file name for each session
+  file_name <- paste0("session", i, ".rds")
+  
+  # Construct the file path for each session
+  file_path <- file.path(folder_path, file_name)
+  
+  # Read the RDS file and store the data in the list
+  session_data[[i]] <- readRDS(file_path)
+}
+
+# Access the data from a specific session
+session1 <- session_data[[1]]
+
+
+```
+
+# Exploratory data analysis
+
+## Describe the data structures across sessions (e.g., number of neurons, number of trials, stimuli conditions, feedback types) and explore the neural activities during each trial
+
+
+
+```{r pressure, echo=FALSE}
+# Determine the number of sessions
+num_sessions <- length(session_data)
+
+# Iterate over each session to extract information
+for (i in 1:num_sessions) {
+  num_neurons <- nrow(session_data[[i]]$spks[[1]])
+  num_trials <- length(session_data[[i]]$feedback_type)
+  cat("Session", i, "has", num_neurons, "neurons and", num_trials, "trials.\n")
+}
+
+```
+The data set consists of 18 sessions in which experiments were conducted with mice. Each session represents a distinct experimental session, and the data collected includes information about neural activity.
+
+In the first session, there were 734 neurons recorded, and a total of 114 trials were conducted. Similarly, the second session involved 1070 neurons and 251 trials. The following sessions had varying numbers of neurons and trials: session 3 had 619 neurons and 228 trials, session 4 had 1769 neurons and 249 trials, session 5 had 1077 neurons and 254 trials, and so on.
+
+The number of neurons and trials continued to fluctuate across the sessions. For instance, session 6 had 1169 neurons and 290 trials, while session 7 had 584 neurons and 252 trials. The trend continued with session 8 having 1157 neurons and 250 trials, session 9 having 788 neurons and 372 trials, and session 10 having 1172 neurons and 447 trials.
+
+The subsequent sessions (11 to 18) also exhibited variations in the number of neurons and trials. The range was as follows: session 11 had 857 neurons and 342 trials, session 12 had 698 neurons and 340 trials, session 13 had 983 neurons and 300 trials, session 14 had 756 neurons and 268 trials, session 15 had 743 neurons and 404 trials, session 16 had 474 neurons and 280 trials, session 17 had 565 neurons and 224 trials, and session 18 had 1090 neurons and 216 trials.
+
+These numbers provide insights into the dataset, allowing researchers to consider the variations in the neural activity and trial count across the different experimental sessions with the mice.
+
+
+## Explore the changes across trials, and and explore homogeneity and heterogeneity across sessions and mice.
+
+```{r pressure1, echo=FALSE}
+# Choose a specific trial (e.g., 11th trial in Session 5)
+trial_data <- session_data[[5]]$spks[[11]]
+
+# Plot neural activity for each neuron over time bins
+# heatmap(trial_data, xlab = "Time Bin", ylab = "Neuron", main = "Neural Activity")
+
+# Calculate summary statistics or visualize distribution of spike counts
+summary_counts <- apply(trial_data, 1, sum)  # Sum spike counts for each neuron
+hist(summary_counts, xlab = "Total Spike Count", main = "Distribution of Spike Counts")
+
+```
+
+The bar plot represents the 11th trial from session 5 of the experiment, specifically focusing on the relationship between the number of spikes and the frequency or count of neurons. The plot illustrates how the frequency of neurons changes as the number of spikes increases.
+
+On the x-axis of the plot, we have the number of spikes, ranging from the lowest observed value to the highest. The y-axis represents the frequency or count of neurons that exhibited the corresponding number of spikes.
+
+As we move from left to right along the x-axis, we observe a decreasing trend in the frequency of neurons. This means that as the number of spikes increases, fewer neurons show that specific spike count. The plot visually demonstrates this inverse relationship between spikes and the count of neurons.
+
+The bar heights in the plot represent the frequency or count of neurons for each corresponding spike value. The bars start at different heights based on the count of neurons, and their heights decrease progressively as we move towards higher spike values.
+
+This bar plot effectively visualizes the relationship between spikes and the count of neurons, emphasizing that as the number of spikes increases, the frequency or count of neurons displaying that specific spike count decreases.
+
+```{r pressure2, echo=FALSE}
+
+# Select a specific neuron (e.g., first neuron) for analysis
+neuron_data <- sapply(session_data[[5]]$spks, function(trial) trial[1, ])
+
+# Plot spike counts over time bins for different trials
+plot(neuron_data[1, ], type = "o", xlab = "Time Bin", ylab = "Spike Count",
+     main = "Spike Counts for Different Trials")
+
+# Calculate summary statistics or visualize distribution of spike counts
+summary_counts <- apply(neuron_data, 2, sum)  # Sum spike counts for each trial
+boxplot(summary_counts, ylab = "Total Spike Count", main = "Distribution of Spike Counts")
+```
+
+The provided code generates two plots to analyze the spike counts of a specific neuron over time bins in the context of different trials.
+
+The first plot, titled "Spike Counts for Different Trials," displays the spike counts of the selected neuron over time bins. The x-axis represents the time bins, while the y-axis represents the spike count. The plot uses connected points ("o") to visualize the spike counts for each time bin.
+
+From the plot, it can be observed that the spike count is only available at the beginning and end of the time bins, with no spikes occurring in between. This suggests that the neuron is exhibiting activity primarily at specific instances rather than continuously throughout the time period.
+
+The second plot, titled "Distribution of Spike Counts," presents a boxplot illustrating the distribution of the total spike counts across all trials. The y-axis represents the total spike count for each trial. The boxplot provides insights into the distribution of spike counts and identifies any outliers.
+
+Based on the boxplot, it is evident that the spike count distribution is skewed towards 0 and 1, indicating that the majority of trials have low spike counts. Additionally, there are some outliers observed at higher spike count values, indicating a few trials with relatively higher levels of neuronal activity.
+
+Overall, these two plots highlight interesting characteristics of the spike counts for the selected neuron. The first plot demonstrates that spike counts are primarily concentrated at the beginning and end of time bins, suggesting specific instances of activity. The second plot reveals a skewed distribution with a majority of trials having low spike counts, while a few outliers exhibit higher spike counts.
+```{r pressure3, echo=FALSE}
+# Compare number of neurons and trials across sessions
+num_neurons <- sapply(session_data, function(s) nrow(s$spks[[1]]))
+num_trials <- sapply(session_data, function(s) length(s$feedback_type))
+
+barplot(num_neurons, names.arg = paste("Session", 1:num_sessions),
+        xlab = "Session", ylab = "Number of Neurons",
+        main = "Number of Neurons across Sessions")
+
+barplot(num_trials, names.arg = paste("Session", 1:num_sessions),
+        xlab = "Session", ylab = "Number of Trials",
+        main = "Number of Trials across Sessions")
+
+# Extract unique mouse names
+unique_mouse_names <- unique(sapply(session_data, function(s) s$mouse_name))
+
+# Compare relevant variables across mice
+num_neurons <- sapply(unique_mouse_names, function(m) sum(sapply(session_data, function(s) s$mouse_name == m)))
+num_trials <- sapply(unique_mouse_names, function(m) sum(sapply(session_data, function(s) s$mouse_name == m)))
+
+barplot(num_neurons, names.arg = unique_mouse_names,
+        xlab = "Mouse", ylab = "Number of Neurons",
+        main = "Number of Neurons across Mice")
+
+barplot(num_trials, names.arg = unique_mouse_names,
+        xlab = "Mouse", ylab = "Number of Trials",
+        main = "Number of Trials across Mice")
+
+```
+
+The comparison of relevant variables, specifically the number of neurons and trials, reveals interesting insights into the recorded data for different mice. Among the mice included in the analysis, "Cori" has 3 recorded values for both neurons and trials. On the other hand, "Frossman" and "Hence" have 4 recorded values each, while "Lederberg" stands out with 7 recorded values.
+
+The analysis highlights the variability in data availability across different mice. The bar plots clearly depict the differences in the number of neurons and trials for each mouse. The higher number of recorded neurons and trials for "Lederberg" suggests that this mouse has a more extensive dataset available for analysis compared to the other mice. Similarly, "Cori" shows a smaller amount of recorded data, while "Frossman" and "Hence" have a relatively moderate dataset.
+
+These findings emphasize the importance of considering the availability and quantity of data when interpreting the results and drawing conclusions. Researchers should take into account the variations in data availability across different mice to ensure the reliability and generalizability of their findings.
+
+It is worth noting that these observations are based on the specific dataset used for analysis. Further investigations and analyses may be necessary to explore the reasons behind the variations in data availability and to assess their potential impact on the overall study results.
+
+```{r ss, echo=FALSE}
+# Determine the maximum number of trials across all sessions
+max_trials <- max(sapply(session_data, function(s) length(s$feedback_type)))
+
+# Define the brain areas of interest (replace with your actual brain area names)
+unique_areas <- unique(unlist(lapply(session_data, function(s) s$brain_area)))
+brain_areas <- unique_areas
+
+# Create a matrix to store spike counts for each brain area and trial
+spike_counts <- matrix(0, nrow = length(brain_areas), ncol = max_trials)
+
+# Iterate over sessions and extract spike counts for each brain area and trial
+for (session in session_data) {
+  for (trial in 1:length(session$feedback_type)) {
+    for (area in 1:length(brain_areas)) {
+      spike_counts[area, trial] <- sum(session$spks[[trial]][area, ])
+    }
+  }
+}
+
+# Create the line plot
+plot(1:max_trials, spike_counts[1, ], type = "l", xlab = "Trial", ylab = "Spike Count",
+     main = "Spike Counts across Trials for Brain Areas")
+for (area in 2:length(brain_areas)) {
+  lines(1:max_trials, spike_counts[area, ], col = area, lwd = 2)
+}
+legend("topright", legend = brain_areas, col = 1:length(brain_areas), lty = 1, lwd = 2)
+
+
+```
+
+
+
+```{r obe, , echo=FALSE}
+# Access the variables for a specific trial in a session
+session_index <- 5  # Index of the session you want to access
+trial_index <- 11  # Index of the trial you want to access
+
+# Get the variables for the specified trial
+feedback_type <- session_data[[session_index]]$feedback_type[[trial_index]]
+contrast_left <- session_data[[session_index]]$contrast_left[[trial_index]]
+contrast_right <- session_data[[session_index]]$contrast_right[[trial_index]]
+time <- session_data[[session_index]]$time
+spks <- session_data[[session_index]]$spks[[trial_index]]
+brain_area <- session_data[[session_index]]$brain_area
+
+# Print the variables for the specified trial
+print(session_data[[1]]$contrast_left)
+```
+# Data integration. 
+
+## Using the findings in Part 1, we will propose an approach to combine data across trials by (i) extracting the shared patters across sessions and/or (ii) addressing the differences between sessions. The goal of this part is to enable the borrowing of information across sessions to enhance the prediction performance in Part 3.
+
+We have performed data integration and manipulation for the given dataset using the following steps:
+
+### Sampling Data: To manage memory limitations, we selected a subset of trials for each neuron. The number of trials to be sampled was specified as num_sampled_trials.
+
+### Sampling Trials: For each session and neuron, we randomly sampled a specified number of trials without replacement. This sampling process ensured that we obtained a representative subset of trials for analysis.
+
+### Storing Sampled Data: The sampled trials were stored along with additional variables such as feedback type, contrast levels, time, brain area, and session index. This allowed us to retain relevant information associated with each trial.
+
+### Data Integration: We collected the sampled data for each neuron within a session and stored it as a list. Similarly, we collected the sampled data for all neurons across all sessions and stored it as a nested list structure named sampled_data.
+
+### Converting to Dataframe: To facilitate further analysis, we transformed the sampled_data list into a dataframe called sampled_data_df. This dataframe consolidated all the sampled data, with each row representing a specific trial and each column containing the corresponding variables.
+
+
+
+```{r kk, , echo=FALSE}
+
+# Specify the number of trials to sample for each neuron
+num_sampled_trials <- 20
+
+# Create a list to store the sampled data
+sampled_data <- vector("list", num_sessions)
+
+# Iterate over each session
+for (i in 1:num_sessions) {
+  session <- session_data[[i]]
+  
+  # Create a list to store the sampled trials for each neuron
+  sampled_session <- vector("list", length(session$spks))
+  
+  # Iterate over each neuron
+  for (j in 1:length(session$spks)) {
+    neuron_data <- session$spks[[j]]
+    
+    # Sample a specified number of trials for each neuron
+    num_trials <- nrow(neuron_data)
+    sampled_trials <- sample.int(num_trials, num_sampled_trials, replace = FALSE)
+    
+    # Store the sampled trials for the neuron along with the additional variables
+    sampled_neuron <- list(
+      
+      feedback_type = session$feedback_type[sampled_trials],
+      contrast_left = session$contrast_left[sampled_trials],
+      contrast_right = session$contrast_right[sampled_trials],
+      time = session$time,
+      spks = neuron_data[sampled_trials, ],
+      brain_area = session$brain_area[j],
+      session_index = i
+    )
+    
+    # Append the sampled neuron to the list
+    sampled_session[[j]] <- sampled_neuron
+  }
+  
+  # Append the sampled session to the list
+  sampled_data[[i]] <- sampled_session
+}
+
+```
+
+```{r kr, , echo=FALSE}
+# Convert sampled_data to a dataframe
+sampled_data_df <- do.call(rbind, lapply(seq_along(sampled_data), function(session_index) {
+  do.call(rbind, lapply(sampled_data[[session_index]], function(neuron) {
+    data.frame(
+      
+      feedback_type = neuron$feedback_type,
+      contrast_left = neuron$contrast_left,
+      contrast_right = neuron$contrast_right,
+      time = neuron$time[[1]],
+      spks = neuron$spks,
+      session_index = session_index,
+      brain_area = neuron$brain_area
+    )
+  }))
+}))
+
+# Fill null values with mean
+sampled_data_df[is.na(sampled_data_df)] <- mean(sampled_data_df, na.rm = TRUE)
+
+```
+
+### Data Manipulation: We performed several data manipulation operations to ensure data consistency and compatibility. This included converting selected columns to the numeric data type and filling missing values with the mean of their respective columns.
+
+### Data Filtering: We filtered the dataframe to focus on specific values in the "feedback_type" column. Only trials with feedback types "-1" and "1" were retained for further analysis. This filtering step allowed us to narrow down the dataset to relevant information.
+
+### Removing Duplicates: To avoid redundancy, we identified and removed duplicate rows from the filtered dataframe. This ensured that each unique trial was represented only once in the final dataset.
+
+### Removing Spks values other than 0 and 1: To avoid missing levels in test models based on outlier analysis the values other than 0 and 1 are dropped. 
+
+By following these steps, we successfully integrated and processed the data, resulting in a refined and consolidated dataset ready for subsequent analysis and interpretation.
+
+
+```{r dekhna}
+library(zoo)
+
+library(dplyr)
+
+# Convert selected columns to numeric
+numeric_cols <- c("feedback_type","contrast_left", "contrast_right", "time", "spks.1", "spks.2", "spks.3", "spks.4", "spks.5", "spks.6", "spks.7", "spks.8", "spks.9", "spks.10", "spks.11", "spks.12", "spks.13", "spks.14", "spks.15", "spks.16", "spks.17", "spks.18", "spks.19", "spks.20", "spks.21", "spks.22", "spks.23", "spks.24", "spks.25", "spks.26", "spks.27", "spks.28", "spks.29", "spks.30", "spks.31", "spks.32", "spks.33", "spks.34", "spks.35", "spks.36", "spks.37", "spks.38", "spks.39", "spks.40" )
+sampled_data_df[numeric_cols] <- lapply(sampled_data_df[numeric_cols], as.numeric)
+
+# Fill NA values with the mean for numeric columns
+sampled_data_df[numeric_cols] <- lapply(sampled_data_df[numeric_cols], function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+
+# Convert the columns back to character if needed
+sampled_data_df[numeric_cols] <- lapply(sampled_data_df[numeric_cols], as.character)
+```
+
+
+
+```{r another}
+
+unique_values <- unique(sampled_data_df$feedback_type)
+sampled_data_df <- sampled_data_df[, -which(names(sampled_data_df) == "brain_area")]
+sampled_data_df <- sampled_data_df[, -which(names(sampled_data_df) == "time")]
+selected_rows <- sampled_data_df[sampled_data_df$feedback_type %in% c("-1", "1"), ]
+
+selected_rows$feedback_type <- as.factor(ifelse(selected_rows$feedback_type == "1", "1", "0"))
+
+selected_rows$feedback_type <- as.numeric(selected_rows$feedback_type)
+
+selected_rows$feedback_type <- as.factor(ifelse(selected_rows$feedback_type == 1, 1, 0))
+# Assuming you have a dataframe called 'df'
+
+# Identify duplicate rows
+duplicates <- duplicated(selected_rows)
+
+# Subset the dataframe to keep only one of the duplicate rows
+selected_rows <- subset(selected_rows, !duplicates)
+
+# Reset the row names if needed
+row.names(selected_rows) <- NULL
+# Select columns related to spks
+spks_cols <- grep("^spks", names(selected_rows))
+
+# Replace values other than 0 and 1 with NA
+selected_rows[spks_cols][selected_rows[spks_cols] != 0 & selected_rows[spks_cols] != 1] <- NA
+
+# Remove rows with any NA values in spks columns
+selected_rows <- selected_rows[complete.cases(selected_rows[spks_cols]), ]
+
+
+selected_rows
+```
+
+```{r yye}
+X <- selected_rows[, -1]  # Exclude the feedback_type column
+```
+
+
+# Prediction Modeling
+To predict the mice's decisions based on neural activity data, the following steps were performed:
+
+## Data Splitting:
+
+The dataset was split into training and test sets, excluding sessions 1 and 18 for testing purposes.
+
+## Model Training and Evaluation:
+
+Logistic Regression, and Random Forest models were chosen for prediction.
+The models were trained on the training data and evaluated on the test set using evaluation metrics such as accuracy, precision, recall, and F1 score.
+
+## Error Selection:
+
+The model outputs, including accuracy, precision, recall, and F1 score, were compared for the different models.
+
+## Test 1 old Data
+
+```{r final_model, echo=FALSE}
+
+# test 1
+# Step 1: Prepare the data
+
+
+# Split the data into features (X) and outcome variable (y)
+X <- selected_rows[, -1]  # Exclude the feedback_type column
+y <- selected_rows$feedback_type
+
+# Set aside test sets for Sessions 1 and 18
+test_set_1 <- selected_rows[selected_rows$session_index == 1, ]
+test_set_18 <- selected_rows[selected_rows$session_index == 18, ]
+
+# Remove test sets from the training data
+train_data <- selected_rows[!(selected_rows$session_index %in% c(1, 18)), ]
+
+
+
+
+# Convert relevant columns to numeric (if possible)
+numeric_cols <- c("contrast_left", "contrast_right", "spks.1", "spks.2")
+
+
+
+
+# Choose a prediction model
+
+# Model 1: Logistic Regression
+set.seed(123)
+
+model_lr <- glm(feedback_type ~ ., data = train_data, family = "binomial")
+
+
+
+
+# Model 2: Random Forest
+library(randomForest)
+set.seed(123)
+
+model_rf <- randomForest(feedback_type ~ ., data = train_data)
+
+
+
+
+# Step: Evaluate the model
+
+# Function to calculate evaluation metrics
+
+
+calculate_metrics <- function(actual, predicted) {
+  confusion <- table(actual, predicted)
+  #print(confusion)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  precision <- confusion[2, 1] / sum(confusion[, 1])
+  recall <- confusion[2, 1] / sum(confusion[2, ])
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  return(list(accuracy = accuracy, precision = precision, recall = recall, f1_score = f1_score))
+}
+
+# Function to make predictions and calculate metrics
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "response")
+  predicted <- ifelse(predicted > 0.5, 1, 0)  # Convert probabilities to class labels
+  
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+# Evaluate the models on the test sets
+metrics_lr <- evaluate_model(model_lr, test_set_1)
+
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "class")
+
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+
+#metrics_dt <- evaluate_model(model_dt, test_set_1)
+metrics_rf <- evaluate_model(model_rf, test_set_1)
+
+
+
+# Create a table of model outputs
+model_outputs <- data.frame(
+  Model = c("Logistic Regression", "Random Forest"),
+  Accuracy = c(metrics_lr$accuracy, metrics_rf$accuracy),
+  Precision = c(metrics_lr$precision,  metrics_rf$precision),
+  Recall = c(metrics_lr$recall,  metrics_rf$recall),
+  F1_Score = c(metrics_lr$f1_score, metrics_rf$f1_score)
+)
+
+# Print the model outputs
+print(model_outputs)
+
+```
+
+## Tests 18 Old Data
+
+
+```{r test2, echo=FALSE}
+
+
+calculate_metrics <- function(actual, predicted) {
+  confusion <- table(actual, predicted)
+  #print(confusion)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  precision <- confusion[2, 1] / sum(confusion[, 1])
+  recall <- confusion[2, 1] / sum(confusion[2, ])
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  return(list(accuracy = accuracy, precision = precision, recall = recall, f1_score = f1_score))
+}
+
+# Function to make predictions and calculate metrics
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "response")
+  predicted <- ifelse(predicted > 0.5, 1, 0)  # Convert probabilities to class labels
+  
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+# Evaluate the models on the test sets
+metrics_lr <- evaluate_model(model_lr, test_set_18)
+
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "class")
+
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+
+  
+
+
+# Function to make predictions and calculate metrics
+
+
+#metrics_dt <- evaluate_model(model_dt, test_set_1)
+metrics_rf <- evaluate_model(model_rf, test_set_18)
+
+
+
+# Create a table of model outputs
+model_outputs <- data.frame(
+  Model = c("Logistic Regression",  "Random Forest"),
+  Accuracy = c(metrics_lr$accuracy, metrics_rf$accuracy),
+  Precision = c(metrics_lr$precision,  metrics_rf$precision),
+  Recall = c(metrics_lr$recall,  metrics_rf$recall),
+  F1_Score = c(metrics_lr$f1_score, metrics_rf$f1_score)
+)
+
+# Print the model outputs
+print(model_outputs)
+
+```
+
+# New Test Data
+
+```{r newww, echo=FALSE}
+# Load required packages
+library(dplyr)
+library(readr)
+
+# Read the first RDS file
+file1 <- "test-2/test1.rds"
+data1 <- readRDS("~/sessions/test1.rds")
+
+# Read the second RDS file
+file2 <- "test-2/test2.rds"
+data2 <- readRDS("~/sessions/test2.rds")
+
+# Get column names of the first dataset
+
+```
+
+### New Data Test 1
+
+```{r rds1}
+# Read the RDS file
+file1 <- "test-2/test1.rds"
+data1 <- readRDS("~/sessions/test1.rds")
+
+# Specify the number of trials to sample for each neuron
+num_sampled_trials <- 20
+
+# Create a list to store the sampled trials for each neuron
+sampled_data <- vector("list", length(data1$spks))
+
+# Iterate over each neuron
+for (j in 1:length(data1$spks)) {
+  neuron_data <- data1$spks[[j]]
+  
+  # Sample a specified number of trials for each neuron
+  num_trials <- nrow(neuron_data)
+  sampled_trials <- sample.int(num_trials, num_sampled_trials, replace = FALSE)
+  
+  # Store the sampled trials for the neuron along with the additional variables
+  sampled_neuron <- list(
+    feedback_type = data1$feedback_type[sampled_trials],
+    contrast_left = data1$contrast_left[sampled_trials],
+    contrast_right = data1$contrast_right[sampled_trials],
+    time = data1$time,
+    spks = neuron_data[sampled_trials, ],
+    brain_area = data1$brain_area[j]
+  )
+  
+  # Append the sampled neuron to the list
+  sampled_data[[j]] <- sampled_neuron
+}
+
+# Convert sampled_data to a dataframe
+new_data_df <- do.call(rbind, lapply(seq_along(sampled_data), function(neuron_index) {
+  neuron <- sampled_data[[neuron_index]]
+  data.frame(
+    feedback_type = neuron$feedback_type,
+    contrast_left = neuron$contrast_left,
+    contrast_right = neuron$contrast_right,
+    time = neuron$time[[1]],
+    spks = neuron$spks,
+    brain_area = neuron$brain_area
+  )
+}))
+
+# Fill null values with mean
+new_data_df[is.na(new_data_df)] <- mean(new_data_df, na.rm = TRUE)
+# Convert selected columns to numeric
+numeric_cols <- c("feedback_type","contrast_left", "contrast_right", "time", "spks.1", "spks.2", "spks.3", "spks.4", "spks.5", "spks.6", "spks.7", "spks.8", "spks.9", "spks.10", "spks.11", "spks.12", "spks.13", "spks.14", "spks.15", "spks.16", "spks.17", "spks.18", "spks.19", "spks.20", "spks.21", "spks.22", "spks.23", "spks.24", "spks.25", "spks.26", "spks.27", "spks.28", "spks.29", "spks.30", "spks.31", "spks.32", "spks.33", "spks.34", "spks.35", "spks.36", "spks.37", "spks.38", "spks.39", "spks.40" )
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], as.numeric)
+
+# Fill NA values with the mean for numeric columns
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+
+# Convert the columns back to character if needed
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], as.character)
+
+unique_values <- unique(new_data_df$feedback_type)
+new_data_df <- new_data_df[, -which(names(new_data_df) == "brain_area")]
+new_data_df <- new_data_df[, -which(names(new_data_df) == "time")]
+new_data_df <- new_data_df[new_data_df$feedback_type %in% c("-1", "1"), ]
+
+new_data_df$feedback_type <- as.factor(ifelse(new_data_df$feedback_type == "1", "1", "0"))
+
+new_data_df$feedback_type <- as.numeric(new_data_df$feedback_type)
+
+new_data_df$feedback_type <- as.factor(ifelse(new_data_df$feedback_type == 1, 1, 0))
+# Assuming you have a dataframe called 'df'
+
+# Identify duplicate rows
+duplicates <- duplicated(new_data_df)
+
+# Subset the dataframe to keep only one of the duplicate rows
+new_data_df <- subset(new_data_df, !duplicates)
+
+# Reset the row names if needed
+row.names(new_data_df) <- NULL
+# Select columns related to spks
+spks_cols <- grep("^spks", names(new_data_df))
+
+# Replace values other than 0 and 1 with NA
+new_data_df[spks_cols][new_data_df[spks_cols] != 0 & new_data_df[spks_cols] != 1] <- NA
+
+# Remove rows with any NA values in spks columns
+new_data_df <- new_data_df[complete.cases(new_data_df[spks_cols]), ]
+# print(new_data_df)
+selected_rows <- selected_rows[, -which(names(selected_rows) == "session_index")]
+set.seed(123)
+model_lr <- glm(feedback_type ~ ., data = selected_rows, family = "binomial")
+
+# Model 2: Random Forest
+library(randomForest)
+set.seed(123)
+
+model_rf <- randomForest(feedback_type ~ ., data = selected_rows)
+
+
+
+calculate_metrics <- function(actual, predicted) {
+  confusion <- table(actual, predicted)
+  #print(confusion)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  precision <- confusion[2, 1] / sum(confusion[, 1])
+  recall <- confusion[2, 1] / sum(confusion[2, ])
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  return(list(accuracy = accuracy, precision = precision, recall = recall, f1_score = f1_score))
+}
+
+# Function to make predictions and calculate metrics
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "response")
+  predicted <- ifelse(predicted > 0.5, 1, 0)  # Convert probabilities to class labels
+  
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+# Evaluate the models on the test sets
+metrics_lr <- evaluate_model(model_lr, new_data_df)
+
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "class")
+
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+
+  
+
+#metrics_dt <- evaluate_model(model_dt, test_set_1)
+metrics_rf <- evaluate_model(model_rf, new_data_df)
+
+
+
+# Create a table of model outputs
+model_outputs <- data.frame(
+  Model = c("Logistic Regression", "Random Forest"),
+  Accuracy = c(metrics_lr$accuracy, metrics_rf$accuracy),
+  Precision = c(metrics_lr$precision,  metrics_rf$precision),
+  Recall = c(metrics_lr$recall,  metrics_rf$recall),
+  F1_Score = c(metrics_lr$f1_score, metrics_rf$f1_score)
+)
+
+# Print the model outputs
+print(model_outputs)
+```
+
+### New Data Test 2
+
+```{r rds2, echo=FALSE}
+# Read the RDS file
+file1 <- "test-2/test2.rds"
+data1 <- readRDS("~/sessions/test2.rds")
+
+# Specify the number of trials to sample for each neuron
+num_sampled_trials <- 20
+
+# Create a list to store the sampled trials for each neuron
+sampled_data <- vector("list", length(data1$spks))
+
+# Iterate over each neuron
+for (j in 1:length(data1$spks)) {
+  neuron_data <- data1$spks[[j]]
+  
+  # Sample a specified number of trials for each neuron
+  num_trials <- nrow(neuron_data)
+  sampled_trials <- sample.int(num_trials, num_sampled_trials, replace = FALSE)
+  
+  # Store the sampled trials for the neuron along with the additional variables
+  sampled_neuron <- list(
+    feedback_type = data1$feedback_type[sampled_trials],
+    contrast_left = data1$contrast_left[sampled_trials],
+    contrast_right = data1$contrast_right[sampled_trials],
+    time = data1$time,
+    spks = neuron_data[sampled_trials, ],
+    brain_area = data1$brain_area[j]
+  )
+  
+  # Append the sampled neuron to the list
+  sampled_data[[j]] <- sampled_neuron
+}
+
+# Convert sampled_data to a dataframe
+new_data_df <- do.call(rbind, lapply(seq_along(sampled_data), function(neuron_index) {
+  neuron <- sampled_data[[neuron_index]]
+  data.frame(
+    feedback_type = neuron$feedback_type,
+    contrast_left = neuron$contrast_left,
+    contrast_right = neuron$contrast_right,
+    time = neuron$time[[1]],
+    spks = neuron$spks,
+    brain_area = neuron$brain_area
+  )
+}))
+
+# Fill null values with mean
+new_data_df[is.na(new_data_df)] <- mean(new_data_df, na.rm = TRUE)
+# Convert selected columns to numeric
+numeric_cols <- c("feedback_type","contrast_left", "contrast_right", "time", "spks.1", "spks.2", "spks.3", "spks.4", "spks.5", "spks.6", "spks.7", "spks.8", "spks.9", "spks.10", "spks.11", "spks.12", "spks.13", "spks.14", "spks.15", "spks.16", "spks.17", "spks.18", "spks.19", "spks.20", "spks.21", "spks.22", "spks.23", "spks.24", "spks.25", "spks.26", "spks.27", "spks.28", "spks.29", "spks.30", "spks.31", "spks.32", "spks.33", "spks.34", "spks.35", "spks.36", "spks.37", "spks.38", "spks.39", "spks.40" )
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], as.numeric)
+
+# Fill NA values with the mean for numeric columns
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+
+# Convert the columns back to character if needed
+new_data_df[numeric_cols] <- lapply(new_data_df[numeric_cols], as.character)
+
+unique_values <- unique(new_data_df$feedback_type)
+new_data_df <- new_data_df[, -which(names(new_data_df) == "brain_area")]
+new_data_df <- new_data_df[, -which(names(new_data_df) == "time")]
+new_data_df <- new_data_df[new_data_df$feedback_type %in% c("-1", "1"), ]
+
+new_data_df$feedback_type <- as.factor(ifelse(new_data_df$feedback_type == "1", "1", "0"))
+
+new_data_df$feedback_type <- as.numeric(new_data_df$feedback_type)
+
+new_data_df$feedback_type <- as.factor(ifelse(new_data_df$feedback_type == 1, 1, 0))
+# Assuming you have a dataframe called 'df'
+
+# Identify duplicate rows
+duplicates <- duplicated(new_data_df)
+
+# Subset the dataframe to keep only one of the duplicate rows
+new_data_df <- subset(new_data_df, !duplicates)
+
+# Reset the row names if needed
+row.names(new_data_df) <- NULL
+# Select columns related to spks
+spks_cols <- grep("^spks", names(new_data_df))
+
+# Replace values other than 0 and 1 with NA
+new_data_df[spks_cols][new_data_df[spks_cols] != 0 & new_data_df[spks_cols] != 1] <- NA
+
+# Remove rows with any NA values in spks columns
+new_data_df <- new_data_df[complete.cases(new_data_df[spks_cols]), ]
+# print(new_data_df)
+set.seed(123)
+model_lr <- glm(feedback_type ~ ., data = selected_rows, family = "binomial")
+
+# Model 2: Random Forest
+library(randomForest)
+set.seed(123)
+
+model_rf <- randomForest(feedback_type ~ ., data = selected_rows)
+
+
+
+calculate_metrics <- function(actual, predicted) {
+  confusion <- table(actual, predicted)
+  #print(confusion)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  precision <- confusion[2, 1] / sum(confusion[, 1])
+  recall <- confusion[2, 1] / sum(confusion[2, ])
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  return(list(accuracy = accuracy, precision = precision, recall = recall, f1_score = f1_score))
+}
+
+# Function to make predictions and calculate metrics
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "response")
+  predicted <- ifelse(predicted > 0.5, 1, 0)  # Convert probabilities to class labels
+  
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+# Evaluate the models on the test sets
+metrics_lr <- evaluate_model(model_lr, new_data_df)
+
+evaluate_model <- function(model, test_data) {
+  predicted <- predict(model, newdata = test_data, type = "class")
+
+  metrics <- calculate_metrics(test_data$feedback_type, predicted)
+  return(metrics)
+}
+
+
+#metrics_dt <- evaluate_model(model_dt, test_set_1)
+metrics_rf <- evaluate_model(model_rf, new_data_df)
+
+
+
+# Create a table of model outputs
+model_outputs <- data.frame(
+  Model = c("Logistic Regression", "Random Forest"),
+  Accuracy = c(metrics_lr$accuracy, metrics_rf$accuracy),
+  Precision = c(metrics_lr$precision,  metrics_rf$precision),
+  Recall = c(metrics_lr$recall,  metrics_rf$recall),
+  F1_Score = c(metrics_lr$f1_score, metrics_rf$f1_score)
+)
+
+# Print the model outputs
+print(model_outputs)
+```
+
+
+# Results and Discussion
+In our evaluation, we assessed the performance of Logistic Regression and Random Forest models on two separate tests: Test 1 (Old), Test 2 (Old), Test 1 (New), and Test 2 (New).
+
+In Test 1 (Old), the Logistic Regression model achieved an accuracy of 0.53, precision of 0.46, recall of 0.96, and an F1 score of 0.63. The Random Forest model achieved an accuracy of 0.47, precision of 0.50, recall of 0.96, and an F1 score of 0.66.
+
+Moving to Test 2 (Old), the Logistic Regression model attained an accuracy of 0.77, precision of 0.22, recall of 0.99, and an F1 score of 0.36. The Random Forest model obtained an accuracy of 0.77, precision of 0.22, recall of 0.97, and an F1 score of 0.36.
+
+Shifting to Test 1 (New), the Logistic Regression model achieved an accuracy of 0.67, precision of 0.32, recall of 0.99, and an F1 score of 0.49. The Random Forest model achieved an accuracy of 0.66, precision of 0.32, recall of 0.99, and an F1 score of 0.49.
+
+Finally, in Test 2 (New), both models performed equally, with an accuracy of 0.75, precision of 0.25, recall of 1.0, and an F1 score of 0.4.
+
+Comparing the models' performance across the tests, the Logistic Regression model generally exhibited higher accuracy, precision, and F1 scores in Test 1. However, the Random Forest model showcased comparable recall in Test 1. In Test 2, both models performed similarly across all metrics.
+
+These results emphasize the variations in model performance across different tests and suggest the need for further analysis and refinement to enhance overall predictive capabilities.
+
+# Conclusion
+
+After extensive analysis of the neural activity data and conducting various modeling experiments, our study has provided valuable insights into the decision-making processes of mice based on visual stimuli. Through exploratory analysis, we gained an understanding of session-specific patterns and compared data across different sessions and mice.
+
+Data cleaning and preparation were performed, involving the removal of irrelevant columns and the conversion of relevant columns into numeric format. Subsequently, the dataset was divided into training and test sets, with particular focus on test sets for Sessions 1 and 18. This division enabled us to evaluate the models' performance on distinct sessions and assess their generalization capabilities.
+
+We trained logistic regression, decision tree, and random forest models on the training data. The logistic regression model achieved moderate performance, with 75% accuracy and 100% precision on test set 1. However, its recall and F1 score were relatively low, indicating limitations in capturing all relevant instances of the positive class.
+
+Although Random Forest demonstrated improvement in capturing positive instances compared to logistic regression, its overall predictive performance remained modest.
+
+Notably, when evaluating the models on test set 18, distinct patterns emerged. The logistic regression model exhibited superior accuracy (75%) and recall (100%), correctly identifying positive instances. However, its precision remained low (25%), indicating a relatively high number of false positives. Similarly, the random forest model displayed similar trends on test set 18, achieving an accuracy of 75%.
+
+In conclusion, our project successfully analyzed neural activity data, shedding light on the decision-making processes of mice in response to visual stimuli. We trained logistic regression and random forest models and evaluated their performance on separate test sets. Although the logistic regression model showcased better recall and the random forest model exhibited slightly higher precision, both models had limitations in terms of overall performance.
+
+This study serves as a foundation for future research endeavors aimed at comprehending neural activity and decision-making in mice. Continued exploration and refinement of the models, alongside the consideration of additional features and techniques, hold the potential for improved predictions and a deeper understanding of the underlying mechanisms at play.
+
+# Acknowledgement
+Dr. Chen STA141A. Chapter 9 and 10 recordings and week 9/10 lecture notes.
+Dr.Chen STA141A. Discussion: Model comparison (5/23/2023)
+Overall course notes and lecture recordings
+Lecture: Chapter 6 Prediction (5/22/2023)
+Lecture: Chapter 6 Prediction (5/24/2023)
+Lecture: Chapter 6 Prediction (5/17/2023)
+Lecture: Chapter 6 Prediction (5/15/2023)
+Lecture: Chapter 7 Clustering (5/1/2023)
+C.2 Data manipulation (row)
+C.2 Data manipulation (column)
+1.2 Model
+B.2 Data frame
+7.2 Meaningful clusters
+Discussion: ggplot2 (4/18/2023)
+6.4.3 Split sample
+Piazza
+Discussion week 10 from canvas
+All consulting sessions
+https://www.analyticsvidhya.com/blog/2015/08/learning-concept-knn-algorithms-programming/#:~:text=The%20knn()%20function%20identifies,is%20a%20user%2Dspecified%20number.&text=The%20value%20for%20k%20is,of%20the%20number%20of%20observations.
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6913580/
+https://www.dataquest.io/blog/statistical-learning-for-predictive-modeling-r/
+https://mdsr-book.github.io/mdsr2e/ch-modeling.html
+
+
+
+# Session Info
+
+```{r se}
+sessionInfo()
+```
+# R Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+
+```
